@@ -1,0 +1,181 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: #000;
+    color: #fff;
+    font-family: 'Arial', sans-serif;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.game-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    cursor: none;
+}
+
+#score {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    font-size: 24px;
+    color: #fff;
+    z-index: 10;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+}
+
+#bossTimer {
+    position: absolute;
+    top: 50%;
+    right: 20px;
+    transform: translateY(-50%);
+    width: 120px;
+    background-color: rgba(0, 0, 0, 0.7);
+    border: 2px solid #ff00ff;
+    border-radius: 10px;
+    padding: 15px;
+    z-index: 10;
+    text-align: center;
+    box-shadow: 0 0 15px rgba(255, 0, 255, 0.5);
+}
+
+.boss-title {
+    font-size: 16px;
+    margin-bottom: 10px;
+    color: #ff00ff;
+    text-shadow: 0 0 5px #ff00ff;
+}
+
+.timer-bar {
+    width: 100%;
+    height: 150px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+    margin-bottom: 10px;
+    position: relative;
+    overflow: hidden;
+}
+
+.timer-fill {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 0%;
+    background: linear-gradient(to top, #ff00ff, #00ffff);
+    transition: height 1s linear;
+}
+
+.boss-countdown {
+    font-size: 24px;
+    color: #fff;
+    text-shadow: 0 0 5px #fff;
+}
+
+#bossAnnounce {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 15;
+    text-align: center;
+    animation: pulseAnnounce 2s infinite;
+}
+
+.boss-name {
+    font-size: 48px;
+    font-weight: bold;
+    text-transform: uppercase;
+    color: #ff00ff;
+    text-shadow: 0 0 20px #ff00ff, 0 0 30px #ff00ff;
+    letter-spacing: 3px;
+}
+
+#hitMessage {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 15;
+    text-align: center;
+    animation: pulseHit 0.5s infinite;
+}
+
+.hit-text {
+    font-size: 64px;
+    font-weight: bold;
+    text-transform: uppercase;
+    color: #ff0000;
+    text-shadow: 0 0 20px #ff0000, 0 0 30px #ff0000, 0 0 40px #ff0000;
+    letter-spacing: 5px;
+}
+
+@keyframes pulseHit {
+    0% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.3); }
+    100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes pulseAnnounce {
+    0% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.2); }
+    100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+#gameOver {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    padding: 30px;
+    border-radius: 10px;
+    text-align: center;
+    z-index: 20;
+    border: 2px solid #fff;
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+}
+
+#gameOver h1 {
+    margin-bottom: 20px;
+    font-size: 36px;
+    color: #ff00ff;
+    text-shadow: 0 0 10px #ff00ff;
+}
+
+#restartButton {
+    margin-top: 20px;
+    padding: 10px 20px;
+    background: linear-gradient(45deg, #ff00ff, #00ffff);
+    border: none;
+    border-radius: 5px;
+    color: #fff;
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+#restartButton:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 15px rgba(255, 0, 255, 0.8);
+}
+
+.hidden {
+    display: none;
+} 
