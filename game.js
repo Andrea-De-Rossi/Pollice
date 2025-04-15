@@ -39,204 +39,75 @@ document.addEventListener('DOMContentLoaded', () => {
     let bossPhase = 'attack'; // 'attack', 'vulnerable', 'recovery'
     let bossHitInVulnerablePhase = false;
     
+    // Variabili per la fase finale del boss
+    let bossColorTimer = 0;
+    let bossColorCycle = 0;
+    let finaleMessageShown = false;
+    let phase4RandomLaserColor = '#ff0000';
+    
     // Sistema bosses
     const bossList = [
         {
-            name: "Prisma Frattale",
-            color: "#00e2ff",
-            size: 35,
+            name: "Sprizzalampo",
+            color: "#ffcc00",
+            size: 40,
             hp: 4,
-            speed: 1.2,
-            specialAbility: "refraction", // Rifrange in schemi geometrici
-            geometryPoints: [],
-            behaviorState: 'idle',
-            pathAngle: 0,
-            refractTimer: 0,
-            currentPattern: null,
+            speed: 0.7,
+            specialAbility: "laserCannons", // Cannoni laser che orbitano
+            cannonAngle: 0,
+            shootTimer: 0,
+            currentPhase: 1, // Fase attuale del boss (1-4 in base a HP)
+            nextCannonToShoot: 0, // Per la sequenza di fuoco clockwise
+            cannons: [
+                { angle: 0, readyToShoot: false, blinkTimer: 0, laserActive: false, laserEnd: null },
+                { angle: Math.PI/4, readyToShoot: false, blinkTimer: 0, laserActive: false, laserEnd: null },
+                { angle: Math.PI/2, readyToShoot: false, blinkTimer: 0, laserActive: false, laserEnd: null },
+                { angle: 3*Math.PI/4, readyToShoot: false, blinkTimer: 0, laserActive: false, laserEnd: null },
+                { angle: Math.PI, readyToShoot: false, blinkTimer: 0, laserActive: false, laserEnd: null },
+                { angle: 5*Math.PI/4, readyToShoot: false, blinkTimer: 0, laserActive: false, laserEnd: null },
+                { angle: 3*Math.PI/2, readyToShoot: false, blinkTimer: 0, laserActive: false, laserEnd: null },
+                { angle: 7*Math.PI/4, readyToShoot: false, blinkTimer: 0, laserActive: false, laserEnd: null }
+            ],
             behavior: function(deltaTime) {
-                // Aggiorna il timer di rifrazione
-                this.refractTimer = (this.refractTimer || 0) + deltaTime;
-                
                 if (bossPhase === 'vulnerable') {
-                    // Durante la fase vulnerabile, forma un prisma geometrico stazionario
-                    const centerX = canvas.width / 2;
-                    const centerY = canvas.height / 2;
+                    // Durante la fase vulnerabile, rimane al centro dello schermo e disabilita i cannoni
+                    this.x = canvas.width / 2;
+                    this.y = canvas.height / 2;
                     
-                    // Movimento verso il centro
-                    this.x += (centerX - this.x) * 0.1;
-                    this.y += (centerY - this.y) * 0.1;
-                    
-                    // Prisma rotante durante la vulnerabilità
-                    if (!this.geometryPoints.length) {
-                        this.createGeometryPattern(6); // Esagono
-                    }
-                    
-                    // Ruota i punti del prisma
-                    this.rotateGeometryPoints(deltaTime * 0.001);
+                    // Disattiva i laser durante la fase vulnerabile
+                    this.cannons.forEach(cannon => {
+                        cannon.laserActive = false;
+                        cannon.readyToShoot = false;
+                        cannon.blinkTimer = 0;
+                    });
                     
                 } else if (bossPhase === 'recovery') {
-                    // Durante la fase di recupero, si frammenta temporaneamente
-                    const fragmentsCount = 12;
-                    const recoveryPulse = Math.sin(this.refractTimer * 0.005) * 0.3;
+                    // Durante la fase di recupero, rimane al centro e non spara
+                    this.x = canvas.width / 2;
+                    this.y = canvas.height / 2;
                     
-                    // Crea frammenti se non esistono
-                    if (!this.geometryPoints.length) {
-                        this.createGeometryPattern(fragmentsCount, 1.5 + recoveryPulse);
-                    } else {
-                        // Espandi i frammenti
-                        for (let i = 0; i < this.geometryPoints.length; i++) {
-                            const point = this.geometryPoints[i];
-                            const angle = (i / this.geometryPoints.length) * Math.PI * 2;
-                            const expandFactor = 1.5 + recoveryPulse;
-                            
-                            point.distanceFactor = expandFactor;
-                            point.x = this.x + Math.cos(angle + this.pathAngle) * this.size * expandFactor;
-                            point.y = this.y + Math.sin(angle + this.pathAngle) * this.size * expandFactor;
-                        }
-                    }
+                    // Disattiva i laser durante la fase di recupero
+                    this.cannons.forEach(cannon => {
+                        cannon.laserActive = false;
+                        cannon.readyToShoot = false;
+                        cannon.blinkTimer = 0;
+                    });
                     
-                    // Rotazione lenta durante il recupero
-                    this.rotateGeometryPoints(deltaTime * 0.0005);
-                    
-                    // Emetti particelle dai frammenti
-                    if (Math.random() < 0.2) {
-                        const randomPoint = this.geometryPoints[Math.floor(Math.random() * this.geometryPoints.length)];
-                        createParticle(randomPoint.x, randomPoint.y, this.color);
+                    // Emetti particelle per l'effetto di recupero
+                    if (Math.random() < 0.3) {
+                        createParticle(this.x, this.y, this.color);
                     }
                     
                 } else {
-                    // Reset dei punti geometrici per il prossimo pattern
-                    this.geometryPoints = [];
+                    // Durante la fase di attacco, rimane al centro e ruota i cannoni
+                    this.x = canvas.width / 2;
+                    this.y = canvas.height / 2;
                     
-                    // Durante la fase di attacco, cambia periodicamente pattern geometrico
-                    this.stateTimer = (this.stateTimer || 0) + deltaTime;
+                    // Aggiorna timer di sparo
+                    this.shootTimer = (this.shootTimer || 0) + deltaTime;
                     
-                    // Cambia stato comportamentale ogni 2.5 secondi
-                    if (this.stateTimer > 2500) {
-                        this.stateTimer = 0;
-                        
-                        // Seleziona un nuovo stato comportamentale
-                        const states = ['triangle', 'square', 'spiral', 'zigzag'];
-                        this.behaviorState = states[Math.floor(Math.random() * states.length)];
-                        
-                        // Effetto attivazione pattern
-                        createExplosion(this.x, this.y, this.color, 15);
-                    }
-                    
-                    // Comportamenti diversi in base allo stato attuale
-                    switch (this.behaviorState) {
-                        case 'triangle':
-                            // Movimento triangolare intorno al giocatore
-                            this.pathAngle += 0.002 * deltaTime;
-                            
-                            // Calcola i vertici del triangolo
-                            const triangleRadius = 200;
-                            const trianglePoints = [];
-                            
-                            for (let i = 0; i < 3; i++) {
-                                const angle = this.pathAngle + (i * Math.PI * 2 / 3);
-                                trianglePoints.push({
-                                    x: player.x + Math.cos(angle) * triangleRadius,
-                                    y: player.y + Math.sin(angle) * triangleRadius
-                                });
-                            }
-                            
-                            // Trova il punto più vicino lungo il percorso triangolare
-                            let closestPoint = trianglePoints[0];
-                            let minDist = Number.MAX_VALUE;
-                            
-                            for (const point of trianglePoints) {
-                                const dx = this.x - point.x;
-                                const dy = this.y - point.y;
-                                const dist = dx * dx + dy * dy;
-                                
-                                if (dist < minDist) {
-                                    minDist = dist;
-                                    closestPoint = point;
-                                }
-                            }
-                            
-                            // Muoviti verso il punto successivo
-                            const nextPointIndex = (trianglePoints.indexOf(closestPoint) + 1) % 3;
-                            const nextPoint = trianglePoints[nextPointIndex];
-                            
-                            this.x += (nextPoint.x - this.x) * this.speed * 0.01;
-                            this.y += (nextPoint.y - this.y) * this.speed * 0.01;
-                            break;
-                            
-                        case 'square':
-                            // Movimento a scatti in schemi quadrati
-                            this.dashTimer = (this.dashTimer || 0) + deltaTime;
-                            
-                            if (!this.dashTarget || this.dashTimer > 800) {
-                                this.dashTimer = 0;
-                                
-                                // Crea un nuovo punto target su uno schema quadrato
-                                const squareRadius = 180;
-                                const squareAngle = Math.floor(Math.random() * 4) * (Math.PI / 2);
-                                
-                                this.dashTarget = {
-                                    x: player.x + Math.cos(squareAngle) * squareRadius,
-                                    y: player.y + Math.sin(squareAngle) * squareRadius
-                                };
-                                
-                                // Effetto di teletrasporto
-                                createExplosion(this.x, this.y, this.color, 5);
-                            }
-                            
-                            // Movimento rapido verso il target
-                            const dashSpeed = 0.15;
-                            this.x += (this.dashTarget.x - this.x) * dashSpeed;
-                            this.y += (this.dashTarget.y - this.y) * dashSpeed;
-                            break;
-                            
-                        case 'spiral':
-                            // Movimento a spirale intorno al giocatore
-                            this.spiralAngle = (this.spiralAngle || 0) + 0.003 * deltaTime;
-                            this.spiralRadius = (this.spiralRadius || 250) - 0.1 * deltaTime;
-                            
-                            // Reset del raggio della spirale quando diventa troppo piccolo
-                            if (this.spiralRadius < 100) {
-                                this.spiralRadius = 250;
-                            }
-                            
-                            // Calcola la posizione sulla spirale
-                            this.x = player.x + Math.cos(this.spiralAngle) * this.spiralRadius;
-                            this.y = player.y + Math.sin(this.spiralAngle) * this.spiralRadius;
-                            break;
-                            
-                        case 'zigzag':
-                            // Movimento a zigzag verso il giocatore
-                            this.zigzagTimer = (this.zigzagTimer || 0) + deltaTime;
-                            const zigzagPeriod = 1000;
-                            
-                            // Calcola direzione base verso il giocatore
-                            const dx = player.x - this.x;
-                            const dy = player.y - this.y;
-                            const baseAngle = Math.atan2(dy, dx);
-                            
-                            // Aggiungi zigzag alla direzione base
-                            const zigzagAmplitude = Math.PI / 3; // 60 gradi
-                            const zigzagOffset = Math.sin(this.zigzagTimer / zigzagPeriod * Math.PI * 2) * zigzagAmplitude;
-                            const moveAngle = baseAngle + zigzagOffset;
-                            
-                            // Applica movimento
-                            this.x += Math.cos(moveAngle) * this.speed * 1.2;
-                            this.y += Math.sin(moveAngle) * this.speed * 1.2;
-                            break;
-                            
-                        default:
-                            // Comportamento di fallback - movimento standard
-                            const angle = Math.atan2(player.y - this.y, player.x - this.x);
-                            this.x += Math.cos(angle) * this.speed;
-                            this.y += Math.sin(angle) * this.speed;
-                    }
-                    
-                    // Usa l'abilità speciale periodicamente durante la fase di attacco
-                    if (this.refractTimer > 3000) {
-                        this.useSpecialAbility();
-                        this.refractTimer = 0;
-                    }
+                    // Gestione dei cannoni laser in base alla fase corrente
+                    this.updateCannons(deltaTime);
                 }
                 
                 // Aggiornamento scia
@@ -246,157 +117,277 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.trail.push({ x: this.x, y: this.y, size: this.size });
             },
             
-            // Crea pattern geometrico di punti
-            createGeometryPattern(numPoints, distanceFactor = 1.0) {
-                this.geometryPoints = [];
+            // Aggiornamento dei cannoni laser
+            updateCannons(deltaTime) {
+                // Rotazione dei cannoni intorno al boss - velocità in base alla fase
+                let rotationSpeed;
                 
-                // Crea i punti in forma geometrica regolare
-                for (let i = 0; i < numPoints; i++) {
-                    const angle = (i / numPoints) * Math.PI * 2;
-                    const point = {
-                        x: this.x + Math.cos(angle) * this.size * distanceFactor,
-                        y: this.y + Math.sin(angle) * this.size * distanceFactor,
-                        size: this.size / 3,
-                        color: this.color,
-                        angle: angle,
-                        distanceFactor: distanceFactor
-                    };
-                    
-                    this.geometryPoints.push(point);
+                if (this.currentPhase === 3) {
+                    rotationSpeed = 0.0009 * deltaTime; // Fase 3: rotazione più veloce
+                } else if (this.currentPhase === 4) {
+                    rotationSpeed = 0.0012 * deltaTime; // Fase 4: rotazione ancora più veloce
+                } else {
+                    rotationSpeed = 0.0003 * deltaTime; // Fase 1-2: rotazione normale
                 }
                 
-                return this.geometryPoints;
+                this.cannonAngle = (this.cannonAngle || 0) + rotationSpeed;
+                
+                // Distanza dei cannoni dal corpo del boss
+                const cannonDistance = this.size * 2;
+                
+                // Aggiornamento posizione di tutti i cannoni
+                this.cannons.forEach((cannon, index) => {
+                    // Aggiorna la posizione del cannone
+                    cannon.angle = this.cannonAngle + (index * Math.PI/4);
+                    
+                    // Se il laser è attivo, aggiorna anche la posizione dell'endpoint del laser
+                    if (cannon.laserActive && cannon.laserEnd) {
+                        const cannonX = this.x + Math.cos(cannon.angle) * cannonDistance;
+                        const cannonY = this.y + Math.sin(cannon.angle) * cannonDistance;
+                        const laserLength = 1500; // Lunghezza fissa del laser
+                        
+                        // Aggiorna l'endpoint del laser per seguire la rotazione del cannone
+                        cannon.laserEnd = {
+                            x: cannonX + Math.cos(cannon.angle) * laserLength,
+                            y: cannonY + Math.sin(cannon.angle) * laserLength
+                        };
+                        
+                        // Verifica collisione con il giocatore
+                        if (this.linePointDistance(
+                            cannonX, cannonY, 
+                            cannon.laserEnd.x, cannon.laserEnd.y, 
+                            player.x, player.y
+                        ) < player.size) {
+                            gameOver();
+                        }
+                    }
+                });
+                
+                // Gestione degli spari basata sulla fase del boss
+                if (this.currentPhase === 1) {
+                    // Fase 1: Comportamento originale - spari casuali multipli
+                    this.phaseOneShooting(deltaTime);
+                } else if (this.currentPhase === 2) {
+                    // Fase 2: Spari in sequenza in senso orario
+                    this.phaseTwoShooting(deltaTime);
+                } else if (this.currentPhase === 3) {
+                    // Fase 3: Tutti i cannoni sparano tranne due, con rotazione più veloce
+                    this.phaseThreeShooting(deltaTime);
+                } else if (this.currentPhase === 4) {
+                    // Fase 4: Attacco finale con colori variabili
+                    this.phaseFourShooting(deltaTime);
+                }
             },
             
-            // Ruota i punti del pattern geometrico
-            rotateGeometryPoints(angleIncrement) {
-                if (!this.geometryPoints.length) return;
-                
-                this.pathAngle = (this.pathAngle || 0) + angleIncrement;
-                
-                for (let i = 0; i < this.geometryPoints.length; i++) {
-                    const point = this.geometryPoints[i];
-                    const angle = (i / this.geometryPoints.length) * Math.PI * 2 + this.pathAngle;
+            // Fase 1: Comportamento originale di sparo
+            phaseOneShooting(deltaTime) {
+                // Gestione degli spari che avvengono ogni 2 secondi
+                if (this.shootTimer > 2000) {
+                    this.shootTimer = 0;
                     
-                    point.x = this.x + Math.cos(angle) * this.size * point.distanceFactor;
-                    point.y = this.y + Math.sin(angle) * this.size * point.distanceFactor;
+                    // Determina quanti cannoni spareranno (tra 1 e 4)
+                    const cannonCount = 1 + Math.floor(Math.random() * 4);
+                    
+                    // Sceglie a caso quali cannoni spareranno
+                    const shootingCannons = this.getRandomCannons(cannonCount);
+                    
+                    // Prepara i cannoni selezionati per sparare
+                    shootingCannons.forEach(cannonIndex => {
+                        const cannon = this.cannons[cannonIndex];
+                        cannon.readyToShoot = true;
+                        cannon.blinkTimer = 0;
+                        
+                        // Calcola la posizione del cannone per l'effetto particella
+                        const cannonDistance = this.size * 2;
+                        const cannonX = this.x + Math.cos(cannon.angle) * cannonDistance;
+                        const cannonY = this.y + Math.sin(cannon.angle) * cannonDistance;
+                        
+                        try {
+                            createParticle(cannonX, cannonY, "#ff0000");
+                        } catch (e) {
+                            // Ignora errori nella creazione di particelle
+                        }
+                    });
                 }
+                
+                // Gestione lampeggio e attivazione laser
+                this.updateCannonBlinking(deltaTime);
+            },
+            
+            // Fase 2: Sparo sequenziale in senso orario
+            phaseTwoShooting(deltaTime) {
+                const cannonDistance = this.size * 2;
+                
+                // Spara un cannone alla volta in sequenza ogni 0.25 secondi (era 0.5 secondi)
+                if (this.shootTimer > 250) {
+                    this.shootTimer = 0;
+                    
+                    // Prepara il prossimo cannone a sparare
+                    const cannon = this.cannons[this.nextCannonToShoot];
+                    cannon.readyToShoot = true;
+                    cannon.blinkTimer = 0;
+                    
+                    // Calcola la posizione del cannone per l'effetto particella
+                    const cannonX = this.x + Math.cos(cannon.angle) * cannonDistance;
+                    const cannonY = this.y + Math.sin(cannon.angle) * cannonDistance;
+                    
+                    try {
+                        createParticle(cannonX, cannonY, "#ff0000");
+                    } catch (e) {
+                        // Ignora errori nella creazione di particelle
+                    }
+                    
+                    // Passa al prossimo cannone in senso orario
+                    this.nextCannonToShoot = (this.nextCannonToShoot + 1) % this.cannons.length;
+                }
+                
+                // Gestione lampeggio e attivazione laser
+                this.updateCannonBlinking(deltaTime);
+            },
+            
+            // Fase 3: Tutti i cannoni sparano tranne due (pattern a muro con apertura)
+            phaseThreeShooting(deltaTime) {
+                // Spara ogni 3 secondi
+                if (this.shootTimer > 3000) {
+                    this.shootTimer = 0;
+                    
+                    // Seleziona due cannoni casuali da NON sparare (creando un'apertura)
+                    const safeIndices = this.getRandomCannons(2);
+                    const safeSet = new Set(safeIndices);
+                    
+                    // Prepara tutti gli altri cannoni per sparare
+                    this.cannons.forEach((cannon, index) => {
+                        // Se non è nell'insieme dei cannoni "sicuri", preparalo a sparare
+                        if (!safeSet.has(index)) {
+                            cannon.readyToShoot = true;
+                            cannon.blinkTimer = 0;
+                            
+                            // Calcola la posizione del cannone per l'effetto particella
+                            const cannonDistance = this.size * 2;
+                            const cannonX = this.x + Math.cos(cannon.angle) * cannonDistance;
+                            const cannonY = this.y + Math.sin(cannon.angle) * cannonDistance;
+                            
+                            try {
+                                createParticle(cannonX, cannonY, "#ff0000");
+                            } catch (e) {
+                                // Ignora errori nella creazione di particelle
+                            }
+                        }
+                    });
+                    
+                    // Mostra un effetto più intenso per indicare il pattern pericoloso
+                    glitchEffect();
+                }
+                
+                // Gestione lampeggio e attivazione laser
+                this.updateCannonBlinking(deltaTime);
+            },
+            
+            // Fase 4: Final phase with color changes and random laser attacks
+            phaseFourShooting(deltaTime) {
+                // Cambia colore del laser ad ogni ciclo
+                if (Math.random() < 0.05) {
+                    phase4RandomLaserColor = this.getRandomBrightColor();
+                }
+                
+                // Spara ogni 0.4 secondi con 2 cannoni casuali
+                if (this.shootTimer > 400) {
+                    this.shootTimer = 0;
+                    
+                    // Seleziona due cannoni casuali da sparare
+                    const shootingIndices = this.getRandomCannons(2);
+                    
+                    shootingIndices.forEach(index => {
+                        const cannon = this.cannons[index];
+                        cannon.readyToShoot = true;
+                        cannon.blinkTimer = 0;
+                        cannon.laserColor = this.getRandomBrightColor(); // Colore casuale per ogni cannone
+                        
+                        // Calcola la posizione del cannone per l'effetto particella
+                        const cannonDistance = this.size * 2;
+                        const cannonX = this.x + Math.cos(cannon.angle) * cannonDistance;
+                        const cannonY = this.y + Math.sin(cannon.angle) * cannonDistance;
+                        
+                        try {
+                            createParticle(cannonX, cannonY, cannon.laserColor);
+                        } catch (e) {
+                            // Ignora errori nella creazione di particelle
+                        }
+                    });
+                }
+                
+                // Gestione lampeggio e attivazione laser
+                this.updateCannonBlinking(deltaTime);
+            },
+            
+            // Genera un colore brillante casuale
+            getRandomBrightColor() {
+                const hue = Math.floor(Math.random() * 360);
+                return `hsl(${hue}, 100%, 50%)`;
+            },
+            
+            // Gestione del lampeggio e attivazione laser
+            updateCannonBlinking(deltaTime) {
+                const cannonDistance = this.size * 2;
+                
+                this.cannons.forEach((cannon, index) => {
+                    // Calcola la posizione del cannone
+                    const cannonX = this.x + Math.cos(cannon.angle) * cannonDistance;
+                    const cannonY = this.y + Math.sin(cannon.angle) * cannonDistance;
+                    
+                    // Gestione lampeggio e sparo
+                    if (cannon.readyToShoot) {
+                        // Lampeggio del cannone prima di sparare
+                        cannon.blinkTimer += deltaTime;
+                        
+                        // Dopo 0.8 secondi di lampeggio, spara
+                        if (cannon.blinkTimer > 800) {
+                            cannon.readyToShoot = false;
+                            cannon.laserActive = true;
+                            
+                            // Calcola endpoint del laser
+                            const laserLength = 1500; // Lunghezza fissa del laser
+                            cannon.laserEnd = {
+                                x: cannonX + Math.cos(cannon.angle) * laserLength,
+                                y: cannonY + Math.sin(cannon.angle) * laserLength
+                            };
+                            
+                            // Effetto sonoro e visivo per lo sparo
+                            try {
+                                createExplosion(cannonX, cannonY, cannon.laserColor || "#ff0000", 15);
+                                glitchEffect();
+                            } catch (e) {
+                                // Ignora errori negli effetti
+                            }
+                            
+                            // Il laser rimane attivo per 1 secondo
+                            setTimeout(() => {
+                                if (cannon) {
+                                    cannon.laserActive = false;
+                                }
+                            }, 1000);
+                        }
+                    }
+                });
+            },
+            
+            // Seleziona cannoni casuali per sparare
+            getRandomCannons(count) {
+                const indices = [];
+                const available = [0, 1, 2, 3, 4, 5, 6, 7];
+                
+                for (let i = 0; i < count; i++) {
+                    if (available.length === 0) break;
+                    const randomIndex = Math.floor(Math.random() * available.length);
+                    const selectedCannonIndex = available.splice(randomIndex, 1)[0];
+                    indices.push(selectedCannonIndex);
+                }
+                
+                return indices;
             },
             
             useSpecialAbility: function() {
-                if (bossPhase === 'attack') {
-                    // Crea un prisma refrattivo che genera raggi
-                    
-                    // Determina il tipo di pattern
-                    const patterns = [
-                        { shape: 'line', count: 12 }, // Raggi in tutte le direzioni
-                        { shape: 'grid', count: 16 }, // Griglia 4x4 di raggi
-                        { shape: 'spiral', count: 8 }  // Spirale di raggi
-                    ];
-                    
-                    this.currentPattern = patterns[Math.floor(Math.random() * patterns.length)];
-                    
-                    // Crea i punti del pattern
-                    const laserPoints = [];
-                    
-                    if (this.currentPattern.shape === 'line') {
-                        // Raggi lineari in tutte le direzioni
-                        for (let i = 0; i < this.currentPattern.count; i++) {
-                            const angle = (i / this.currentPattern.count) * Math.PI * 2;
-                            const distance = 500; // Lunghezza del raggio
-                            
-                            // Punto iniziale (vicino al boss)
-                            laserPoints.push({
-                                x: this.x + Math.cos(angle) * this.size,
-                                y: this.y + Math.sin(angle) * this.size
-                            });
-                            
-                            // Punto finale (lontano dal boss)
-                            laserPoints.push({
-                                x: this.x + Math.cos(angle) * distance,
-                                y: this.y + Math.sin(angle) * distance
-                            });
-                        }
-                    } else if (this.currentPattern.shape === 'grid') {
-                        // Griglia di raggi
-                        const gridSize = Math.sqrt(this.currentPattern.count);
-                        const spacing = 100;
-                        
-                        for (let i = 0; i < gridSize; i++) {
-                            for (let j = 0; j < gridSize; j++) {
-                                // Calcola posizione nella griglia
-                                const gridX = this.x + (i - gridSize/2 + 0.5) * spacing;
-                                const gridY = this.y + (j - gridSize/2 + 0.5) * spacing;
-                                
-                                // Aggiungi raggio dal boss al punto della griglia
-                                laserPoints.push({ x: this.x, y: this.y });
-                                laserPoints.push({ x: gridX, y: gridY });
-                            }
-                        }
-                    } else if (this.currentPattern.shape === 'spiral') {
-                        // Spirale di raggi
-                        const baseAngle = Math.random() * Math.PI;
-                        
-                        for (let i = 0; i < this.currentPattern.count; i++) {
-                            const angle = baseAngle + (i / this.currentPattern.count) * Math.PI * 4;
-                            const distance = 50 + i * 30; // Aumenta la distanza ad ogni iterazione
-                            
-                            // Punto iniziale e finale della spirale
-                            laserPoints.push({ x: this.x, y: this.y });
-                            laserPoints.push({
-                                x: this.x + Math.cos(angle) * distance,
-                                y: this.y + Math.sin(angle) * distance
-                            });
-                        }
-                    }
-                    
-                    // Crea temporaneamente i laser - verranno visualizzati nel metodo draw
-                    this.laserPoints = laserPoints;
-                    
-                    // Effetto visivo per l'attivazione dell'abilità
-                    createExplosion(this.x, this.y, this.color, 30);
-                    
-                    // Genera particelle dannose lungo i raggi
-                    for (let i = 0; i < laserPoints.length; i += 2) {
-                        const start = laserPoints[i];
-                        const end = laserPoints[i + 1];
-                        
-                        // Calcola direzione e lunghezza
-                        const dx = end.x - start.x;
-                        const dy = end.y - start.y;
-                        const dist = Math.sqrt(dx * dx + dy * dy);
-                        
-                        // Crea particelle lungo il raggio
-                        const particleCount = Math.floor(dist / 30);
-                        for (let j = 0; j < particleCount; j++) {
-                            const ratio = j / particleCount;
-                            const particleX = start.x + dx * ratio;
-                            const particleY = start.y + dy * ratio;
-                            
-                            // Crea particella dannosa
-                            const particle = {
-                                x: particleX,
-                                y: particleY,
-                                size: 5,
-                                speed: 0.2,
-                                angle: Math.atan2(dy, dx) + (Math.random() * 0.5 - 0.25),
-                                color: this.color,
-                                life: 1.5,
-                                decay: 0.01,
-                                isDamaging: true  // Questa particella danneggia il giocatore
-                            };
-                            particles.push(particle);
-                        }
-                    }
-                    
-                    // Rimuovi i laser dopo 1 secondo
-                    setTimeout(() => {
-                        this.laserPoints = null;
-                    }, 1000);
-                    
-                    // Effetto glitch quando si attiva l'abilità
-                    glitchEffect();
-                }
+                // L'abilità speciale è gestita nell'updateCannons
             },
             
             draw() {
@@ -412,44 +403,85 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Colore diverso in base alla fase
                 if (bossPhase === 'vulnerable') {
                     this.color = this.vulnerableColor;
+                } else if (this.currentPhase === 4 && bossPhase === 'attack') {
+                    // Cambio colore continuo per la fase finale
+                    const hue = (bossColorCycle % 360);
+                    this.color = `hsl(${hue}, 100%, 50%)`;
                 } else {
                     this.color = this.normalColor;
                 }
                 
-                // Disegna laser speciali se attivi
-                if (this.laserPoints && this.laserPoints.length >= 2) {
-                    for (let i = 0; i < this.laserPoints.length; i += 2) {
-                        const start = this.laserPoints[i];
-                        const end = this.laserPoints[i + 1];
-                        
-                        // Disegna il laser con effetto glow
-                        ctx.beginPath();
-                        ctx.moveTo(start.x, start.y);
-                        ctx.lineTo(end.x, end.y);
-                        ctx.strokeStyle = this.color;
-                        ctx.lineWidth = 3;
-                        ctx.shadowColor = this.color;
-                        ctx.shadowBlur = 10;
-                        ctx.stroke();
-                    }
+                // Debug - Disegna linee per vedere la posizione dei cannoni
+                const cannonDistance = this.size * 2;
+                this.cannons.forEach((cannon, index) => {
+                    const cannonX = this.x + Math.cos(cannon.angle) * cannonDistance;
+                    const cannonY = this.y + Math.sin(cannon.angle) * cannonDistance;
+                    
+                    // Disegna il cannone
+                    ctx.beginPath();
+                    ctx.arc(cannonX, cannonY, this.size * 0.5, 0, Math.PI * 2);
+                    ctx.fillStyle = cannon.readyToShoot ? "#ff0000" : "#ff6600";
+                    ctx.fill();
+                    
+                    // Glow effect
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = "#ff6600";
+                    ctx.beginPath();
+                    ctx.arc(cannonX, cannonY, this.size * 0.3, 0, Math.PI * 2);
+                    ctx.fillStyle = "#ff9900";
+                    ctx.fill();
                     ctx.shadowBlur = 0;
-                }
+                    
+                    // Linea di connessione
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+                    ctx.lineTo(cannonX, cannonY);
+                    ctx.strokeStyle = "#ff660080";
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                    
+                    // Disegna il laser se attivo
+                    if (cannon.laserActive && cannon.laserEnd) {
+                        // Determina il colore del laser - usa il colore specifico del cannone se disponibile
+                        const laserColor = cannon.laserColor || "#ff0000";
+                        
+                        // Laser principale
+                        ctx.beginPath();
+                        ctx.moveTo(cannonX, cannonY);
+                        ctx.lineTo(cannon.laserEnd.x, cannon.laserEnd.y);
+                        ctx.strokeStyle = laserColor;
+                        ctx.lineWidth = 4;
+                        ctx.shadowBlur = 15;
+                        ctx.shadowColor = laserColor;
+                        ctx.stroke();
+                        
+                        // Alone esterno del laser
+                        ctx.beginPath();
+                        ctx.moveTo(cannonX, cannonY);
+                        ctx.lineTo(cannon.laserEnd.x, cannon.laserEnd.y);
+                        ctx.strokeStyle = `rgba(${laserColor.replace(/[^\d,]/g, '')}, 0.3)`;
+                        ctx.lineWidth = 8;
+                        ctx.stroke();
+                        ctx.shadowBlur = 0;
+                        
+                        // Particelle lungo il laser
+                        if (Math.random() < 0.3) {
+                            const laserDx = cannon.laserEnd.x - cannonX;
+                            const laserDy = cannon.laserEnd.y - cannonY;
+                            const laserLength = Math.sqrt(laserDx * laserDx + laserDy * laserDy);
+                            const particleDistance = Math.random() * laserLength;
+                            const ratio = particleDistance / laserLength;
+                            const particleX = cannonX + laserDx * ratio;
+                            const particleY = cannonY + laserDy * ratio;
+                            createParticle(particleX, particleY, laserColor);
+                        }
+                    }
+                });
                 
-                // Disegna il centro prismatico
+                // Disegna boss principale
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                
-                // Crea un gradiente radiale per l'effetto prisma
-                const gradient = ctx.createRadialGradient(
-                    this.x, this.y, this.size * 0.3,
-                    this.x, this.y, this.size
-                );
-                gradient.addColorStop(0, "#ffffff");
-                gradient.addColorStop(0.5, this.color);
-                gradient.addColorStop(0.7, "#ffffff");
-                gradient.addColorStop(1, this.color);
-                
-                ctx.fillStyle = gradient;
+                ctx.fillStyle = this.color;
                 ctx.fill();
                 
                 // Effetto glow
@@ -461,36 +493,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fill();
                 ctx.shadowBlur = 0;
                 
-                // Disegna i punti geometrici
-                this.geometryPoints.forEach(point => {
-                    // Disegna punto
-                    ctx.beginPath();
-                    ctx.arc(point.x, point.y, point.size, 0, Math.PI * 2);
-                    ctx.fillStyle = this.color;
-                    ctx.fill();
-                    
-                    // Effetto glow
-                    ctx.shadowBlur = 10;
-                    ctx.shadowColor = this.color;
-                    ctx.beginPath();
-                    ctx.arc(point.x, point.y, point.size * 0.7, 0, Math.PI * 2);
-                    ctx.fillStyle = "#ffffff";
-                    ctx.fill();
-                    ctx.shadowBlur = 0;
-                    
-                    // Linea di connessione al corpo principale
-                    ctx.beginPath();
-                    ctx.moveTo(this.x, this.y);
-                    ctx.lineTo(point.x, point.y);
-                    ctx.strokeStyle = `${this.color}80`;
-                    ctx.lineWidth = 2;
-                    ctx.stroke();
-                });
+                // Disegna struttura interna del boss (generatore dei laser)
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size * 0.5, 0, Math.PI * 2);
+                ctx.fillStyle = "#ff9900";
+                ctx.fill();
                 
                 // Disegna barra della vita
                 const healthBarWidth = this.size * 2;
                 const healthBarHeight = 6;
-                const healthPercentage = this.hp / bossTemplate.hp;
+                const maxHp = 4; // Numero fisso di HP per i boss
+                const healthPercentage = this.hp / maxHp;
                 
                 // Sfondo barra della vita
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
@@ -501,462 +514,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillRect(this.x - healthBarWidth / 2, this.y - this.size - 15, healthBarWidth * healthPercentage, healthBarHeight);
             },
             
-            damage() {
-                this.hp -= 1;
-                createExplosion(this.x, this.y, this.color, 30);
+            // Calcola la distanza tra un punto e una linea (per il laser)
+            linePointDistance(x1, y1, x2, y2, px, py) {
+                // Calcola la lunghezza della linea
+                const lineLength = Math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+                if (lineLength === 0) return Math.sqrt((px - x1) * (px - x1) + (py - y1) * (py - y1));
                 
-                // Effetto prisma quando viene colpito
-                this.createGeometryPattern(8, 1.5);
-                glitchEffect();
+                // Calcola la distanza punto-linea
+                const t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / (lineLength * lineLength);
+                const t_clamped = Math.max(0, Math.min(1, t));
                 
-                // Controllo se è stato sconfitto
-                if (this.hp <= 0) {
-                    defeatBoss();
-                } else {
-                    // Passa alla fase di recupero
-                    bossPhase = 'recovery';
-                    bossPhaseTimer = 0;
-                    hitMessage.classList.add('hidden');
-                }
-            },
-            
-            // Verifica collisione con qualsiasi parte del boss
-            checkPartCollision(entity) {
-                // Controlla prima il corpo principale
-                const dx = entity.x - this.x;
-                const dy = entity.y - this.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
+                const closestX = x1 + t_clamped * (x2 - x1);
+                const closestY = y1 + t_clamped * (y2 - y1);
                 
-                if (distance < entity.size + this.size) {
-                    return true;
-                }
-                
-                // Poi controlla tutti i punti geometrici
-                for (const point of this.geometryPoints) {
-                    const pointDx = entity.x - point.x;
-                    const pointDy = entity.y - point.y;
-                    const pointDistance = Math.sqrt(pointDx * pointDx + pointDy * pointDy);
-                    
-                    if (pointDistance < entity.size + point.size) {
-                        return true;
-                    }
-                }
-                
-                return false;
-            }
-        },
-        {
-            name: "Vortice Ipnotico",
-            color: "#9900ff",
-            size: 30,
-            hp: 4,
-            speed: 1.2,
-            specialAbility: "warp", // Distorce lo spazio e si teletrasporta
-            behavior: function(deltaTime) {
-                if (bossPhase === 'vulnerable') {
-                    // Durante la fase vulnerabile, va al centro dello schermo
-                    const centerX = canvas.width / 2;
-                    const centerY = canvas.height / 2;
-                    this.x += (centerX - this.x) * 0.1;
-                    this.y += (centerY - this.y) * 0.1;
-                    this.warping = false;
-                } else if (bossPhase === 'recovery') {
-                    // Durante la fase di recupero, si allontana leggermente
-                    const dx = player.x - this.x;
-                    const dy = player.y - this.y;
-                    const angle = Math.atan2(dy, dx);
-                    this.x -= Math.cos(angle) * this.speed * 0.5;
-                    this.y -= Math.sin(angle) * this.speed * 0.5;
-                } else {
-                    // Accumula tempo per il teletrasporto
-                    this.warpTimer = (this.warpTimer || 0) + deltaTime;
-                    
-                    // Rotazione attorno al giocatore
-                    const distanceFromPlayer = 200;
-                    const rotationSpeed = 0.002;
-                    
-                    // Se non è in fase di teletrasporto
-                    if (!this.warping) {
-                        this.angle = (this.angle || 0) + rotationSpeed * deltaTime;
-                        this.x = player.x + Math.cos(this.angle) * distanceFromPlayer;
-                        this.y = player.y + Math.sin(this.angle) * distanceFromPlayer;
-                        
-                        // Teletrasporto periodico
-                        if (this.warpTimer > 2000) {
-                            this.useSpecialAbility();
-                            this.warpTimer = 0;
-                        }
-                    } else {
-                        // Durante il teletrasporto, il boss è invisibile e non si muove
-                        this.warpTime -= deltaTime;
-                        if (this.warpTime <= 0) {
-                            this.warping = false;
-                            this.x = player.x + (Math.random() * 400 - 200);
-                            this.y = player.y + (Math.random() * 400 - 200);
-                            createExplosion(this.x, this.y, this.color, 20);
-                        }
-                    }
-                }
-                
-                // Aggiornamento scia solo se non in fase di warp
-                if (!this.warping) {
-                    if (this.trail.length > this.maxTrail) {
-                        this.trail.shift();
-                    }
-                    this.trail.push({ x: this.x, y: this.y, size: this.size });
-                }
-            },
-            useSpecialAbility: function() {
-                // Diventa invisibile e si teletrasporta
-                if (bossPhase === 'attack') {
-                    this.warping = true;
-                    this.warpTime = 1000;
-                    createExplosion(this.x, this.y, this.color, 20);
-                    
-                    // Effetto glitch durante il teletrasporto
-                    glitchEffect();
-                }
-            }
-        },
-        {
-            name: "Nebula Vorticosa",
-            color: "#e610e6",
-            size: 40,
-            hp: 4,
-            speed: 1.1,
-            specialAbility: "gravityWell", // Crea zone di gravità che attraggono o respingono
-            orbitAngle: 0,
-            gravityWells: [],
-            behavior: function(deltaTime) {
-                if (bossPhase === 'vulnerable') {
-                    // Durante la fase vulnerabile, si ferma e pulsa
-                    const centerX = canvas.width / 2;
-                    const centerY = canvas.height / 2;
-                    this.x += (centerX - this.x) * 0.1;
-                    this.y += (centerY - this.y) * 0.1;
-                    
-                    // Disattiva i pozzi gravitazionali
-                    this.gravityWells = [];
-                    
-                } else if (bossPhase === 'recovery') {
-                    // Durante la fase di recupero, si trasforma in una nebulosa espansa
-                    this.recoveryTime = (this.recoveryTime || 0) + deltaTime;
-                    const pulseSize = Math.sin(this.recoveryTime * 0.005) * 0.3;
-                    this.currentSize = this.size * (1 + pulseSize);
-                    
-                    // Emetti particelle in tutte le direzioni
-                    if (Math.random() < 0.3) {
-                        const angle = Math.random() * Math.PI * 2;
-                        const distance = this.size * 1.2;
-                        createParticle(
-                            this.x + Math.cos(angle) * distance,
-                            this.y + Math.sin(angle) * distance,
-                            this.color
-                        );
-                    }
-                    
-                } else {
-                    // Reset size
-                    this.currentSize = this.size;
-                    
-                    // Movimento: alternanza tra fase di stasi e scatti rapidi
-                    this.movementPhase = (this.movementPhase || 'stasis');
-                    this.phaseTimer = (this.phaseTimer || 0) + deltaTime;
-                    
-                    if (this.movementPhase === 'stasis') {
-                        // In stasi, rimane quasi fermo e ruota lentamente
-                        this.orbitAngle += 0.001 * deltaTime;
-                        
-                        if (this.phaseTimer > 2000) {
-                            // Passa alla fase di scatto
-                            this.movementPhase = 'dash';
-                            this.phaseTimer = 0;
-                            this.dashTarget = {
-                                x: player.x + (Math.random() * 400 - 200),
-                                y: player.y + (Math.random() * 400 - 200)
-                            };
-                            
-                            // Mantieni il punto di dash all'interno dello schermo
-                            this.dashTarget.x = Math.max(100, Math.min(canvas.width - 100, this.dashTarget.x));
-                            this.dashTarget.y = Math.max(100, Math.min(canvas.height - 100, this.dashTarget.y));
-                        }
-                    } else if (this.movementPhase === 'dash') {
-                        // Scatto rapido verso il punto target
-                        const dashSpeed = 0.2;
-                        this.x += (this.dashTarget.x - this.x) * dashSpeed;
-                        this.y += (this.dashTarget.y - this.y) * dashSpeed;
-                        
-                        // Rilascia particelle durante lo scatto
-                        if (Math.random() < 0.3) {
-                            createParticle(this.x, this.y, this.color);
-                        }
-                        
-                        // Calcola la distanza al target
-                        const dx = this.dashTarget.x - this.x;
-                        const dy = this.dashTarget.y - this.y;
-                        const distToTarget = Math.sqrt(dx * dx + dy * dy);
-                        
-                        // Se è arrivato al target o è passato abbastanza tempo
-                        if (distToTarget < 20 || this.phaseTimer > 1000) {
-                            this.movementPhase = 'stasis';
-                            this.phaseTimer = 0;
-                        }
-                    }
-                    
-                    // Uso periodico dell'abilità speciale
-                    this.abilityTimer = (this.abilityTimer || 0) + deltaTime;
-                    if (this.abilityTimer > 3000 && this.gravityWells.length < 3) {
-                        this.useSpecialAbility();
-                        this.abilityTimer = 0;
-                    }
-                    
-                    // Aggiorna i pozzi gravitazionali
-                    this.updateGravityWells(deltaTime);
-                }
-                
-                // Aggiornamento scia
-                if (this.trail.length > this.maxTrail) {
-                    this.trail.shift();
-                }
-                this.trail.push({ x: this.x, y: this.y, size: this.currentSize || this.size });
-            },
-            
-            // Aggiornamento dei pozzi gravitazionali
-            updateGravityWells(deltaTime) {
-                for (let i = this.gravityWells.length - 1; i >= 0; i--) {
-                    const well = this.gravityWells[i];
-                    
-                    // Aggiorna durata
-                    well.life -= deltaTime * 0.0005;
-                    
-                    // Rimuovi pozzi esauriti
-                    if (well.life <= 0) {
-                        this.gravityWells.splice(i, 1);
-                        createExplosion(well.x, well.y, well.type === 'attract' ? '#ff00ff' : '#00ffff', 15);
-                        continue;
-                    }
-                    
-                    // Pulsa il raggio del pozzo
-                    well.currentRadius = well.radius * (0.8 + Math.sin(gameTime * 0.003) * 0.2);
-                    
-                    // Applica effetto gravitazionale sul giocatore
-                    const dx = player.x - well.x;
-                    const dy = player.y - well.y;
-                    const distSq = dx * dx + dy * dy;
-                    const dist = Math.sqrt(distSq);
-                    
-                    // Applica forza solo se il giocatore è nel raggio
-                    if (dist < well.currentRadius * 1.5) {
-                        // Calcola l'intensità della forza (più forte quando vicino)
-                        const force = 0.4 * (1 - dist / (well.currentRadius * 1.5));
-                        
-                        // Direzione della forza
-                        let dirX = dx / dist;
-                        let dirY = dy / dist;
-                        
-                        // Se repulsivo, inverte la direzione
-                        if (well.type === 'repel') {
-                            dirX *= -1;
-                            dirY *= -1;
-                        }
-                        
-                        // Applica movimento al giocatore
-                        player.x += dirX * force;
-                        player.y += dirY * force;
-                        
-                        // Crea particelle dall'effetto gravitazionale
-                        if (Math.random() < 0.1) {
-                            createParticle(
-                                well.x + dirX * well.currentRadius * Math.random(),
-                                well.y + dirY * well.currentRadius * Math.random(),
-                                well.type === 'attract' ? '#ff00ff' : '#00ffff'
-                            );
-                        }
-                        
-                        // Verifica collisione con il centro del pozzo
-                        if (dist < player.size + 15) {
-                            if (well.type === 'attract') {
-                                // Pozzi attrattivi danneggiano il giocatore
-                                gameOver();
-                            }
-                        }
-                    }
-                }
-            },
-            
-            useSpecialAbility: function() {
-                if (bossPhase === 'attack') {
-                    // Crea un nuovo pozzo gravitazionale
-                    const isAttractive = Math.random() < 0.7; // 70% attrattivo, 30% repulsivo
-                    
-                    // Posiziona il pozzo in maniera strategica
-                    let wellX, wellY;
-                    
-                    if (isAttractive) {
-                        // Pozzi attrattivi vengono posizionati vicino al giocatore
-                        const angle = Math.random() * Math.PI * 2;
-                        const distance = 150 + Math.random() * 100;
-                        wellX = player.x + Math.cos(angle) * distance;
-                        wellY = player.y + Math.sin(angle) * distance;
-                    } else {
-                        // Pozzi repulsivi vengono posizionati tra il giocatore e il boss
-                        wellX = (player.x + this.x) / 2 + (Math.random() * 100 - 50);
-                        wellY = (player.y + this.y) / 2 + (Math.random() * 100 - 50);
-                    }
-                    
-                    // Assicura che il pozzo sia dentro lo schermo
-                    wellX = Math.max(50, Math.min(canvas.width - 50, wellX));
-                    wellY = Math.max(50, Math.min(canvas.height - 50, wellY));
-                    
-                    // Crea il pozzo
-                    const well = {
-                        x: wellX,
-                        y: wellY,
-                        radius: 80 + Math.random() * 40,
-                        type: isAttractive ? 'attract' : 'repel',
-                        life: 1.0
-                    };
-                    
-                    this.gravityWells.push(well);
-                    
-                    // Effetto visivo
-                    createExplosion(well.x, well.y, isAttractive ? '#ff00ff' : '#00ffff', 20);
-                    glitchEffect();
-                }
-            },
-            
-            draw() {
-                // Disegno scia
-                this.trail.forEach((pos, index) => {
-                    const alpha = index / this.maxTrail;
-                    ctx.beginPath();
-                    ctx.arc(pos.x, pos.y, pos.size * alpha, 0, Math.PI * 2);
-                    ctx.fillStyle = `rgba(${this.color.replace(/[^\d,]/g, '')}, ${alpha * 0.4})`;
-                    ctx.fill();
-                });
-                
-                // Colore diverso in base alla fase
-                if (bossPhase === 'vulnerable') {
-                    this.color = this.vulnerableColor;
-                } else {
-                    this.color = this.normalColor;
-                }
-                
-                // Disegna pozzi gravitazionali
-                this.gravityWells.forEach(well => {
-                    const wellColor = well.type === 'attract' ? '#ff00ff' : '#00ffff';
-                    
-                    // Cerchio esterno pulsante
-                    ctx.beginPath();
-                    ctx.arc(well.x, well.y, well.currentRadius, 0, Math.PI * 2);
-                    
-                    // Gradiente radiale che sfuma verso l'esterno
-                    const gradient = ctx.createRadialGradient(
-                        well.x, well.y, 0,
-                        well.x, well.y, well.currentRadius
-                    );
-                    gradient.addColorStop(0, `${wellColor}80`); // Semi-trasparente al centro
-                    gradient.addColorStop(1, `${wellColor}00`); // Completamente trasparente ai bordi
-                    ctx.fillStyle = gradient;
-                    ctx.fill();
-                    
-                    // Linee orbitali che girano intorno al pozzo
-                    const numLines = 8;
-                    const rotationSpeed = well.type === 'attract' ? 0.001 : -0.001;
-                    const rotationOffset = gameTime * rotationSpeed;
-                    
-                    for (let i = 0; i < numLines; i++) {
-                        const angle = (i / numLines) * Math.PI * 2 + rotationOffset;
-                        const innerRadius = well.currentRadius * 0.2;
-                        const outerRadius = well.currentRadius * 0.9;
-                        
-                        ctx.beginPath();
-                        ctx.moveTo(
-                            well.x + Math.cos(angle) * innerRadius,
-                            well.y + Math.sin(angle) * innerRadius
-                        );
-                        ctx.lineTo(
-                            well.x + Math.cos(angle) * outerRadius,
-                            well.y + Math.sin(angle) * outerRadius
-                        );
-                        ctx.strokeStyle = `${wellColor}${Math.floor(well.life * 255).toString(16).padStart(2, '0')}`;
-                        ctx.lineWidth = 2;
-                        ctx.stroke();
-                    }
-                    
-                    // Nucleo centrale del pozzo
-                    ctx.beginPath();
-                    ctx.arc(well.x, well.y, 15, 0, Math.PI * 2);
-                    ctx.fillStyle = wellColor;
-                    ctx.shadowBlur = 15;
-                    ctx.shadowColor = wellColor;
-                    ctx.fill();
-                    ctx.shadowBlur = 0;
-                });
-                
-                // Disegno boss con effetto nebulosa
-                const bossSize = this.currentSize || this.size;
-                
-                // Nebulosa esterna
-                const numLayers = 4;
-                for (let i = 0; i < numLayers; i++) {
-                    const layerSize = bossSize * (1 - i * 0.15);
-                    const alpha = 0.3 - i * 0.05;
-                    
-                    ctx.beginPath();
-                    ctx.arc(this.x, this.y, layerSize, 0, Math.PI * 2);
-                    ctx.fillStyle = `rgba(${this.color.replace(/[^\d,]/g, '')}, ${alpha})`;
-                    ctx.fill();
-                }
-                
-                // Nucleo centrale (più luminoso)
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, bossSize * 0.6, 0, Math.PI * 2);
-                ctx.fillStyle = this.color;
-                ctx.fill();
-                
-                // Effetto glow
-                ctx.shadowBlur = 20;
-                ctx.shadowColor = this.color;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, bossSize * 0.4, 0, Math.PI * 2);
-                ctx.fillStyle = '#ffffff';
-                ctx.fill();
-                ctx.shadowBlur = 0;
-                
-                // Anelli orbitali rotanti (solo in fase di attacco)
-                if (bossPhase === 'attack') {
-                    const numRings = 2;
-                    for (let i = 0; i < numRings; i++) {
-                        const ringSize = bossSize * (1.2 + i * 0.3);
-                        const ringRotation = (gameTime * 0.001 * (i % 2 === 0 ? 1 : -1));
-                        
-                        ctx.beginPath();
-                        ctx.ellipse(
-                            this.x, this.y,
-                            ringSize, ringSize * 0.6,
-                            ringRotation, 0, Math.PI * 2
-                        );
-                        ctx.strokeStyle = this.color;
-                        ctx.lineWidth = 2;
-                        ctx.setLineDash([5, 15]);
-                        ctx.stroke();
-                    }
-                    ctx.setLineDash([]);
-                }
-                
-                // Disegna barra della vita
-                const healthBarWidth = this.size * 2;
-                const healthBarHeight = 6;
-                const healthPercentage = this.hp / bossTemplate.hp;
-                
-                // Sfondo barra della vita
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-                ctx.fillRect(this.x - healthBarWidth / 2, this.y - this.size - 15, healthBarWidth, healthBarHeight);
-                
-                // Barra della vita
-                ctx.fillStyle = this.normalColor;
-                ctx.fillRect(this.x - healthBarWidth / 2, this.y - this.size - 15, healthBarWidth * healthPercentage, healthBarHeight);
+                return Math.sqrt((px - closestX) * (px - closestX) + (py - closestY) * (py - closestY));
             }
         }
     ];
@@ -1168,31 +739,99 @@ document.addEventListener('DOMContentLoaded', () => {
         // Scegli un boss casuale dalla lista
         const bossTemplate = bossList[Math.floor(Math.random() * bossList.length)];
         
-        // Posizione fuori dallo schermo
-        let x, y;
-        if (Math.random() > 0.5) {
-            x = Math.random() > 0.5 ? -100 : canvas.width + 100;
-            y = Math.random() * canvas.height;
-        } else {
-            x = Math.random() * canvas.width;
-            y = Math.random() > 0.5 ? -100 : canvas.height + 100;
-        }
-        
-        // Crea il boss con le proprietà del template
+        // Crea il boss con le proprietà base
         const boss = {
-            ...bossTemplate,
-            x,
-            y,
+            name: bossTemplate.name,
+            color: bossTemplate.color,
+            size: bossTemplate.size,
+            hp: bossTemplate.hp,
+            speed: bossTemplate.speed,
+            specialAbility: bossTemplate.specialAbility,
+            x: canvas.width / 2,  // Spawn at center
+            y: canvas.height / 2, // Spawn at center
             trail: [],
             maxTrail: 25,
-            hasDivided: false,
             vulnerableColor: "#ff0000", // Colore quando vulnerabile
             normalColor: bossTemplate.color, // Salva il colore originale
-            update(deltaTime) {
-                // Usa il comportamento specifico del boss
-                this.behavior(deltaTime);
-            },
-            draw() {
+            currentPhase: 1 // Inizia dalla fase 1
+        };
+        
+        // Inizializza proprietà specifiche in base al tipo di boss
+        if (boss.name === "Sprizzalampo") {
+            boss.cannonAngle = 0;
+            boss.shootTimer = 0;
+            boss.nextCannonToShoot = 0;
+            boss.cannons = [
+                { angle: 0, readyToShoot: false, blinkTimer: 0, laserActive: false, laserEnd: null },
+                { angle: Math.PI/4, readyToShoot: false, blinkTimer: 0, laserActive: false, laserEnd: null },
+                { angle: Math.PI/2, readyToShoot: false, blinkTimer: 0, laserActive: false, laserEnd: null },
+                { angle: 3*Math.PI/4, readyToShoot: false, blinkTimer: 0, laserActive: false, laserEnd: null },
+                { angle: Math.PI, readyToShoot: false, blinkTimer: 0, laserActive: false, laserEnd: null },
+                { angle: 5*Math.PI/4, readyToShoot: false, blinkTimer: 0, laserActive: false, laserEnd: null },
+                { angle: 3*Math.PI/2, readyToShoot: false, blinkTimer: 0, laserActive: false, laserEnd: null },
+                { angle: 7*Math.PI/4, readyToShoot: false, blinkTimer: 0, laserActive: false, laserEnd: null }
+            ];
+            
+            // Aggiungi i metodi specifici per questo boss
+            boss.behavior = bossTemplate.behavior;
+            boss.updateCannons = bossTemplate.updateCannons;
+            boss.linePointDistance = bossTemplate.linePointDistance;
+            boss.draw = bossTemplate.draw;
+            boss.getRandomCannons = bossTemplate.getRandomCannons;
+            boss.phaseOneShooting = bossTemplate.phaseOneShooting;
+            boss.phaseTwoShooting = bossTemplate.phaseTwoShooting;
+            boss.phaseThreeShooting = bossTemplate.phaseThreeShooting;
+            boss.phaseFourShooting = bossTemplate.phaseFourShooting;
+            boss.getRandomBrightColor = bossTemplate.getRandomBrightColor;
+            boss.updateCannonBlinking = bossTemplate.updateCannonBlinking;
+        }
+        
+        // Aggiungi metodi comuni
+        boss.update = function(deltaTime) {
+            // Aggiorna il ciclo di colori per la fase 4
+            if (this.currentPhase === 4) {
+                bossColorTimer += deltaTime;
+                if (bossColorTimer > 50) { // Velocità di cambio colore
+                    bossColorCycle += 5;
+                    bossColorTimer = 0;
+                }
+            }
+            
+            // Usa il comportamento specifico del boss
+            this.behavior(deltaTime);
+        };
+        
+        boss.damage = function() {
+            this.hp -= 1;
+            createExplosion(this.x, this.y, this.color, 30);
+            
+            // Effetto glitch quando viene colpito
+            glitchEffect();
+            
+            // Aggiorna la fase del boss in base agli HP rimanenti
+            this.currentPhase = 5 - this.hp; // Fase 1 = 4 HP, Fase 2 = 3 HP, ecc.
+            console.log(`Boss entered phase ${this.currentPhase}`);
+            
+            // Se entra nella fase 4 (fase finale), mostra il messaggio drammatico
+            if (this.currentPhase === 4 && !finaleMessageShown) {
+                showFinaleBossMessage();
+                finaleMessageShown = true;
+            }
+            
+            // Controllo se è stato sconfitto
+            if (this.hp <= 0) {
+                defeatBoss();
+            } else {
+                // Passa alla fase di recupero
+                bossPhase = 'recovery';
+                bossPhaseTimer = 0;
+                hitMessage.classList.add('hidden');
+            }
+        };
+        
+        // Se non è stato fornito un metodo draw specifico, usa quello di default
+        if (!boss.draw) {
+            boss.draw = function() {
                 // Disegno scia
                 this.trail.forEach((pos, index) => {
                     const alpha = index / this.maxTrail;
@@ -1205,6 +844,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Colore diverso in base alla fase
                 if (bossPhase === 'vulnerable') {
                     this.color = this.vulnerableColor;
+                } else if (this.currentPhase === 4 && bossPhase === 'attack') {
+                    // Cambio colore continuo per la fase finale
+                    const hue = (bossColorCycle % 360);
+                    this.color = `hsl(${hue}, 100%, 50%)`;
                 } else {
                     this.color = this.normalColor;
                 }
@@ -1226,7 +869,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Disegna barra della vita
                 const healthBarWidth = this.size * 2;
                 const healthBarHeight = 6;
-                const healthPercentage = this.hp / bossTemplate.hp;
+                const maxHp = 4; // Numero fisso di HP per i boss
+                const healthPercentage = this.hp / maxHp;
                 
                 // Sfondo barra della vita
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
@@ -1237,25 +881,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fillRect(this.x - healthBarWidth / 2, this.y - this.size - 15, healthBarWidth * healthPercentage, healthBarHeight);
                 
                 ctx.shadowBlur = 0;
-            },
-            damage() {
-                this.hp -= 1;
-                createExplosion(this.x, this.y, this.color, 30);
-                
-                // Effetto glitch quando viene colpito
-                glitchEffect();
-                
-                // Controllo se è stato sconfitto
-                if (this.hp <= 0) {
-                    defeatBoss();
-                } else {
-                    // Passa alla fase di recupero
-                    bossPhase = 'recovery';
-                    bossPhaseTimer = 0;
-                    hitMessage.classList.add('hidden');
-                }
-            }
-        };
+            };
+        }
         
         return boss;
     }
@@ -1502,45 +1129,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 // Durante la fase di recupero non succede nulla
             } 
-            // Gestione speciale per Doppio Pollice e le sue parti
-            else if (currentBoss.name === "Doppio Pollice" && bossPhase === 'vulnerable' && currentBoss.parts.length > 0) {
-                // Controlla la collisione con le parti quando è in fase vulnerabile
-                let partHit = false;
-                
-                // Verifica collisione con ogni parte
-                for (let i = 0; i < currentBoss.parts.length; i++) {
-                    const part = currentBoss.parts[i];
-                    const dx = player.x - part.x;
-                    const dy = player.y - part.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-                    
-                    if (distance < player.size + part.size) {
-                        // Colpito una parte
-                        partHit = true;
-                        break;
+            
+            // Controllo aggiuntivo per i laser di Sprizzalampo
+            if (currentBoss.name === "Sprizzalampo" && bossPhase === 'attack') {
+                // Controlla la collisione con i laser attivi
+                currentBoss.cannons.forEach(cannon => {
+                    if (cannon.laserActive && cannon.laserEnd) {
+                        const cannonX = currentBoss.x + Math.cos(cannon.angle) * currentBoss.size * 2;
+                        const cannonY = currentBoss.y + Math.sin(cannon.angle) * currentBoss.size * 2;
+                        
+                        // Usa il metodo linePointDistance per controllare la collisione con il laser
+                        if (currentBoss.linePointDistance(
+                            cannonX, cannonY,
+                            cannon.laserEnd.x, cannon.laserEnd.y,
+                            player.x, player.y
+                        ) < player.size) {
+                            gameOver();
+                        }
                     }
-                }
-                
-                if (partHit) {
-                    // Danneggia il boss se colpisce una parte qualsiasi
-                    currentBoss.damage();
-                    bossHitInVulnerablePhase = true;
-                }
-            }
-            // Controlla collisioni con le parti durante la fase di attacco
-            else if (currentBoss.name === "Doppio Pollice" && bossPhase === 'attack') {
-                for (let i = 0; i < currentBoss.parts.length; i++) {
-                    const part = currentBoss.parts[i];
-                    const dx = player.x - part.x;
-                    const dy = player.y - part.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-                    
-                    if (distance < player.size + part.size) {
-                        // Game over se colpisce una parte durante l'attacco
-                        gameOver();
-                        break;
-                    }
-                }
+                });
             }
         } else {
             // Altrimenti, gestisci i nemici normali
@@ -1665,6 +1272,72 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         finalAnimation();
+    }
+
+    // Mostrar il messaggio finale del boss
+    function showFinaleBossMessage() {
+        // Testo da mostrare
+        const message = "I WILL NOW SHOW MY TRUE COLORS!";
+        
+        // Crea elemento per il messaggio
+        const messageElement = document.createElement('div');
+        messageElement.style.position = 'absolute';
+        messageElement.style.top = '50%';
+        messageElement.style.left = '50%';
+        messageElement.style.transform = 'translate(-50%, -50%)';
+        messageElement.style.fontFamily = 'Arial, sans-serif';
+        messageElement.style.fontSize = '72px'; // Molto più grande
+        messageElement.style.fontWeight = 'bold';
+        messageElement.style.zIndex = '1000';
+        messageElement.style.textAlign = 'center';
+        messageElement.style.textShadow = '0 0 20px rgba(255, 255, 255, 0.7)';
+        messageElement.style.lineHeight = '1.2';
+        
+        // Crea ogni lettera con un colore diverso
+        for (let i = 0; i < message.length; i++) {
+            const letterSpan = document.createElement('span');
+            letterSpan.textContent = message[i];
+            
+            // Colore casuale brillante per ogni lettera
+            const hue = Math.floor(Math.random() * 360);
+            letterSpan.style.color = `hsl(${hue}, 100%, 50%)`;
+            
+            // Effetto glow dello stesso colore
+            letterSpan.style.textShadow = `0 0 20px hsl(${hue}, 100%, 70%)`;
+            
+            // Aggiungi un po' di movimento alle lettere
+            letterSpan.style.display = 'inline-block';
+            letterSpan.style.transform = `translateY(${Math.sin(i) * 10}px)`;
+            letterSpan.style.transition = 'transform 0.5s ease';
+            
+            // Effetto di ingrandimento periodico
+            setTimeout(() => {
+                if (letterSpan.parentNode) {
+                    letterSpan.style.transform = `translateY(${Math.cos(i) * 10}px) scale(1.2)`;
+                    setTimeout(() => {
+                        if (letterSpan.parentNode) {
+                            letterSpan.style.transform = `translateY(${Math.sin(i) * 10}px)`;
+                        }
+                    }, 300);
+                }
+            }, i * 50);
+            
+            messageElement.appendChild(letterSpan);
+        }
+        
+        document.body.appendChild(messageElement);
+        
+        // Effetti glitch multipli più intensi
+        for (let i = 0; i < 10; i++) {
+            setTimeout(() => {
+                glitchEffect();
+            }, i * 150);
+        }
+        
+        // Rimuovi il messaggio dopo 3 secondi
+        setTimeout(() => {
+            document.body.removeChild(messageElement);
+        }, 3000);
     }
 
     // Event listeners
