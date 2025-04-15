@@ -919,6 +919,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Quando un boss viene sconfitto
     function defeatBoss() {
+        if (!currentBoss) return; // Previene esecuzioni multiple
+
         // Grande esplosione
         createExplosion(currentBoss.x, currentBoss.y, currentBoss.color, 100);
         
@@ -934,13 +936,35 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Reset timer boss e stato
         bossActive = false;
-        currentBoss = null;
+        const defeatedBoss = currentBoss; // Salva riferimento temporaneo
+        currentBoss = null; // Imposta subito a null per prevenire riferimenti
         bossTimer = 0;
         bossPhase = 'attack';
+        bossPhaseTimer = 0;
         hitMessage.classList.add('hidden');
+        
+        // Reset delle variabili specifiche della fase 4
+        bossColorTimer = 0;
+        bossColorCycle = 0;
+        finaleMessageShown = false;
+        
+        // Pulisci eventuali timeout e riferimenti a oggetti che potrebbero causare memory leak
+        document.querySelectorAll('.boss-message').forEach(el => el.remove());
+        
+        // Assicurati che il gameLoop continui e che vengano creati nuovi nemici
+        setTimeout(() => {
+            if (gameActive) {
+                // Crea qualche nemico subito dopo la sconfitta del boss
+                for (let i = 0; i < 3; i++) {
+                    enemies.push(createEnemy());
+                }
+            }
+        }, 1000);
         
         // Incrementa difficoltà
         difficulty += 0.5;
+        
+        console.log("Boss sconfitto con successo!");
     }
 
     // Gestione delle fasi del boss
@@ -1053,7 +1077,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (bossTimer >= BOSS_SPAWN_TIME) {
                 spawnBoss();
             }
-        } else {
+        } else if (currentBoss) { // Assicurati che currentBoss esista prima di accedervi
             // Aggiorna le fasi del boss
             updateBossPhases(deltaTime);
         }
@@ -1128,28 +1152,36 @@ document.addEventListener('DOMContentLoaded', () => {
                     gameOver();
                 }
                 // Durante la fase di recupero non succede nulla
-            } 
+            }
             
             // Controllo aggiuntivo per i laser di Sprizzalampo
-            if (currentBoss.name === "Sprizzalampo" && bossPhase === 'attack') {
+            if (currentBoss && currentBoss.name === "Sprizzalampo" && bossPhase === 'attack') {
                 // Controlla la collisione con i laser attivi
-                currentBoss.cannons.forEach(cannon => {
-                    if (cannon.laserActive && cannon.laserEnd) {
-                        const cannonX = currentBoss.x + Math.cos(cannon.angle) * currentBoss.size * 2;
-                        const cannonY = currentBoss.y + Math.sin(cannon.angle) * currentBoss.size * 2;
-                        
-                        // Usa il metodo linePointDistance per controllare la collisione con il laser
-                        if (currentBoss.linePointDistance(
-                            cannonX, cannonY,
-                            cannon.laserEnd.x, cannon.laserEnd.y,
-                            player.x, player.y
-                        ) < player.size) {
-                            gameOver();
+                if (currentBoss.cannons) { // Verifica che i cannons esistano
+                    currentBoss.cannons.forEach(cannon => {
+                        if (cannon.laserActive && cannon.laserEnd) {
+                            const cannonX = currentBoss.x + Math.cos(cannon.angle) * currentBoss.size * 2;
+                            const cannonY = currentBoss.y + Math.sin(cannon.angle) * currentBoss.size * 2;
+                            
+                            // Usa il metodo linePointDistance per controllare la collisione con il laser
+                            if (currentBoss.linePointDistance(
+                                cannonX, cannonY,
+                                cannon.laserEnd.x, cannon.laserEnd.y,
+                                player.x, player.y
+                            ) < player.size) {
+                                gameOver();
+                            }
                         }
-                    }
-                });
+                    });
+                }
             }
         } else {
+            // Reset di bossActive se currentBoss non esiste
+            if (bossActive && !currentBoss) {
+                bossActive = false;
+                bossTimer = 0;
+            }
+            
             // Altrimenti, gestisci i nemici normali
             enemies.forEach(enemy => {
                 enemy.update(deltaTime);
@@ -1281,6 +1313,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Crea elemento per il messaggio
         const messageElement = document.createElement('div');
+        messageElement.className = 'boss-message'; // Aggiungi una classe per facile riferimento
         messageElement.style.position = 'absolute';
         messageElement.style.top = '50%';
         messageElement.style.left = '50%';
@@ -1292,6 +1325,7 @@ document.addEventListener('DOMContentLoaded', () => {
         messageElement.style.textAlign = 'center';
         messageElement.style.textShadow = '0 0 20px rgba(255, 255, 255, 0.7)';
         messageElement.style.lineHeight = '1.2';
+        messageElement.style.pointerEvents = 'none'; // Assicura che il testo non interferisca con il gioco
         
         // Crea ogni lettera con un colore diverso
         for (let i = 0; i < message.length; i++) {
