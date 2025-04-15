@@ -12,6 +12,159 @@ document.addEventListener('DOMContentLoaded', () => {
     const bossNameElement = document.querySelector('.boss-name');
     const hitMessage = document.getElementById('hitMessage');
 
+    // Audio system
+    let bgMusic = null;
+    let isMusicEnabled = true;
+    
+    // Inizializza la musica
+    function initAudio() {
+        // Crea elemento audio
+        bgMusic = new Audio();
+        
+        // Imposta le proprietà
+        bgMusic.loop = true;
+        bgMusic.volume = 0.5;
+        
+        // URL del file audio (usando file locale)
+        bgMusic.src = 'Neon Chase.mp3'; // File locale di background music
+        
+        // Gestisci errori di caricamento
+        bgMusic.onerror = (e) => {
+            console.log('Errore nel caricamento della musica:', e);
+            // Usa un backup alternativo se il file locale non è disponibile
+            bgMusic.src = 'https://commondatastorage.googleapis.com/codeskulptor-assets/Epoq-Lepidoptera.ogg';
+        };
+        
+        // Crea e aggiungi controllo del suono
+        createMusicControl();
+        
+        // Mostra un grande pulsante "Play Music" all'inizio per gestire l'interazione utente
+        createInitialPlayButton();
+    }
+    
+    // Crea un grande pulsante di riproduzione iniziale
+    function createInitialPlayButton() {
+        const playButton = document.createElement('div');
+        playButton.id = 'initialPlayButton';
+        playButton.textContent = 'PLAY MUSIC';
+        playButton.style.position = 'absolute';
+        playButton.style.top = '50%';
+        playButton.style.left = '50%';
+        playButton.style.transform = 'translate(-50%, -50%)';
+        playButton.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        playButton.style.color = '#00aaff';
+        playButton.style.padding = '20px 40px';
+        playButton.style.borderRadius = '10px';
+        playButton.style.cursor = 'pointer';
+        playButton.style.zIndex = '2000';
+        playButton.style.fontSize = '24px';
+        playButton.style.fontWeight = 'bold';
+        playButton.style.border = '2px solid #00aaff';
+        playButton.style.boxShadow = '0 0 20px #00aaff';
+        
+        playButton.addEventListener('click', () => {
+            // Tenta di riprodurre l'audio per sbloccare la riproduzione
+            bgMusic.play()
+                .then(() => {
+                    console.log('Riproduzione musica avviata con successo');
+                    // Nascondi il pulsante
+                    playButton.style.display = 'none';
+                })
+                .catch(e => {
+                    console.log('Errore nella riproduzione:', e);
+                    // Mostra messaggio di errore
+                    playButton.textContent = 'AUDIO BLOCKED BY BROWSER';
+                    playButton.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+                    
+                    // Nascondi dopo 3 secondi
+                    setTimeout(() => {
+                        playButton.style.display = 'none';
+                    }, 3000);
+                });
+        });
+        
+        document.body.appendChild(playButton);
+    }
+    
+    // Crea un controllo per il suono
+    function createMusicControl() {
+        const musicControl = document.createElement('div');
+        musicControl.id = 'musicControl';
+        musicControl.innerHTML = '🔊';
+        musicControl.style.position = 'absolute';
+        musicControl.style.top = '20px';
+        musicControl.style.right = '20px';
+        musicControl.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        musicControl.style.color = '#fff';
+        musicControl.style.padding = '10px';
+        musicControl.style.borderRadius = '50%';
+        musicControl.style.cursor = 'pointer';
+        musicControl.style.zIndex = '1000';
+        musicControl.style.width = '20px';
+        musicControl.style.height = '20px';
+        musicControl.style.display = 'flex';
+        musicControl.style.justifyContent = 'center';
+        musicControl.style.alignItems = 'center';
+        musicControl.style.fontSize = '16px';
+        
+        musicControl.addEventListener('click', toggleMusic);
+        
+        document.body.appendChild(musicControl);
+    }
+    
+    // Alterna l'attivazione/disattivazione della musica
+    function toggleMusic() {
+        isMusicEnabled = !isMusicEnabled;
+        
+        const musicControl = document.getElementById('musicControl');
+        if (musicControl) {
+            musicControl.innerHTML = isMusicEnabled ? '🔊' : '🔇';
+        }
+        
+        if (isMusicEnabled) {
+            bgMusic.play().catch(e => {
+                console.log('Errore nella riproduzione:', e);
+                // Mostra messaggio di errore audio
+                showAudioErrorMessage();
+            });
+        } else {
+            bgMusic.pause();
+        }
+    }
+    
+    // Mostra un messaggio di errore audio
+    function showAudioErrorMessage() {
+        const errorMsg = document.createElement('div');
+        errorMsg.textContent = 'Click anywhere to enable audio';
+        errorMsg.style.position = 'absolute';
+        errorMsg.style.top = '60px';
+        errorMsg.style.right = '20px';
+        errorMsg.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+        errorMsg.style.color = 'white';
+        errorMsg.style.padding = '10px';
+        errorMsg.style.borderRadius = '5px';
+        errorMsg.style.zIndex = '2000';
+        
+        document.body.appendChild(errorMsg);
+        
+        // Rimuovi dopo 3 secondi
+        setTimeout(() => {
+            if (errorMsg.parentNode) {
+                errorMsg.parentNode.removeChild(errorMsg);
+            }
+        }, 3000);
+        
+        // Aggiungi un event listener globale per sbloccare l'audio
+        const unlockAudio = () => {
+            bgMusic.play().catch(e => console.log('Still cannot play audio:', e));
+            
+            // Rimuovi l'event listener dopo il primo click
+            document.removeEventListener('click', unlockAudio);
+        };
+        
+        document.addEventListener('click', unlockAudio);
+    }
+
     // Dimensioni del canvas
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -44,6 +197,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let bossColorCycle = 0;
     let finaleMessageShown = false;
     let phase4RandomLaserColor = '#ff0000';
+    
+    // Variabili per tutorial
+    let tutorialPhase = 0; // 0: nessun tutorial, 1-3: fasi tutorial
+    let tutorialTimer = 0;
+    let tutorialElement = null;
+    const TUTORIAL_MESSAGES = [
+        { text: "YOU MOVE WITH THE MOUSE", startTime: 1000, endTime: 3000 },
+        { text: "YOU DEAL DAMAGE WITH COLLISION", startTime: 4000, endTime: 6000 },
+        { text: "WAIT FOR -HIT IT- MESSAGE TO DAMAGE THE BOSS", startTime: 7000, endTime: 9000 }
+    ];
     
     // Sistema bosses
     const bossList = [
@@ -1007,6 +1170,8 @@ document.addEventListener('DOMContentLoaded', () => {
         difficulty = 1;
         bossPhase = 'attack';
         bossPhaseTimer = 0;
+        tutorialPhase = 0;
+        tutorialTimer = 0;
         
         // Reset arrays
         enemies.length = 0;
@@ -1022,10 +1187,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Crea connessioni
         createConnections();
         
-        // Crea nemici iniziali
-        for (let i = 0; i < 3; i++) {
-            enemies.push(createEnemy());
-        }
+        // Rimuovi tutorial precedenti se presenti
+        removeTutorialText();
         
         // Nascondi game over, annuncio boss e messaggio HIT IT
         gameOverElement.classList.add('hidden');
@@ -1034,6 +1197,12 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Reset timer boss UI
         updateBossTimerUI(0);
+        
+        // Avvia la musica di background
+        if (bgMusic && isMusicEnabled) {
+            bgMusic.currentTime = 0;
+            bgMusic.play().catch(e => console.log('Errore nella riproduzione:', e));
+        }
     }
     
     // Aggiorna l'UI del timer del boss
@@ -1043,6 +1212,89 @@ document.addEventListener('DOMContentLoaded', () => {
         // Aggiorna il countdown in secondi
         const remainingSeconds = Math.ceil((BOSS_SPAWN_TIME - bossTimer) / 1000);
         bossCountdown.textContent = `${remainingSeconds}s`;
+    }
+
+    // Funzione per mostrare il testo del tutorial
+    function showTutorialText(message) {
+        // Rimuovi qualsiasi testo tutorial precedente
+        removeTutorialText();
+        
+        // Crea nuovo elemento per il testo tutorial
+        tutorialElement = document.createElement('div');
+        tutorialElement.className = 'tutorial-text';
+        tutorialElement.textContent = message;
+        tutorialElement.style.position = 'absolute';
+        tutorialElement.style.top = '50%';
+        tutorialElement.style.left = '50%';
+        tutorialElement.style.transform = 'translate(-50%, -50%)';
+        tutorialElement.style.color = '#ffffff';
+        tutorialElement.style.fontFamily = 'Arial, sans-serif';
+        tutorialElement.style.fontSize = '36px';
+        tutorialElement.style.fontWeight = 'bold';
+        tutorialElement.style.textAlign = 'center';
+        tutorialElement.style.textShadow = '0 0 10px #00aaff';
+        tutorialElement.style.zIndex = '1000';
+        tutorialElement.style.pointerEvents = 'none';
+        tutorialElement.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        tutorialElement.style.padding = '15px 30px';
+        tutorialElement.style.borderRadius = '10px';
+        
+        // Aggiungi al DOM
+        document.body.appendChild(tutorialElement);
+        
+        // Effetto di fade-in
+        tutorialElement.style.opacity = '0';
+        tutorialElement.style.transition = 'opacity 0.5s ease';
+        
+        setTimeout(() => {
+            if (tutorialElement) tutorialElement.style.opacity = '1';
+        }, 50);
+    }
+
+    // Funzione per rimuovere il testo del tutorial
+    function removeTutorialText() {
+        // Rimuovi elementi tutorial esistenti
+        const tutorialTexts = document.querySelectorAll('.tutorial-text');
+        tutorialTexts.forEach(el => {
+            el.style.opacity = '0';
+            setTimeout(() => {
+                if (el.parentNode) el.parentNode.removeChild(el);
+            }, 500);
+        });
+        
+        tutorialElement = null;
+    }
+
+    // Aggiorna il tutorial in base al timer
+    function updateTutorial(deltaTime) {
+        if (bossActive) {
+            // Rimuovi tutorial quando inizia il boss
+            if (tutorialElement) {
+                removeTutorialText();
+            }
+            return;
+        }
+        
+        tutorialTimer += deltaTime;
+        
+        // Controlla se è tempo di mostrare un nuovo messaggio
+        TUTORIAL_MESSAGES.forEach((message, index) => {
+            if (tutorialTimer >= message.startTime && tutorialTimer <= message.endTime) {
+                if (tutorialPhase !== index + 1) {
+                    tutorialPhase = index + 1;
+                    showTutorialText(message.text);
+                }
+            }
+        });
+        
+        // Rimuovi il messaggio se siamo fuori dall'intervallo di visualizzazione
+        if (tutorialPhase > 0) {
+            const currentMessage = TUTORIAL_MESSAGES[tutorialPhase - 1];
+            if (tutorialTimer > currentMessage.endTime) {
+                tutorialPhase = 0;
+                removeTutorialText();
+            }
+        }
     }
 
     // Game loop
@@ -1073,11 +1325,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const percentage = (bossTimer / BOSS_SPAWN_TIME) * 100;
             updateBossTimerUI(percentage);
             
+            // Aggiorna tutorial
+            updateTutorial(deltaTime);
+            
             // Spawn boss quando il timer raggiunge il tempo previsto
             if (bossTimer >= BOSS_SPAWN_TIME) {
                 spawnBoss();
             }
-        } else if (currentBoss) { // Assicurati che currentBoss esista prima di accedervi
+        } else if (currentBoss) {
             // Aggiorna le fasi del boss
             updateBossPhases(deltaTime);
         }
@@ -1182,20 +1437,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 bossTimer = 0;
             }
             
-            // Altrimenti, gestisci i nemici normali
-            enemies.forEach(enemy => {
-                enemy.update(deltaTime);
-                enemy.draw();
+            // Gestisci i nemici solo se non siamo in fase tutorial (primi 10 secondi)
+            if (bossTimer >= BOSS_SPAWN_TIME || bossDefeated > 0) {
+                // Altrimenti, gestisci i nemici normali
+                enemies.forEach(enemy => {
+                    enemy.update(deltaTime);
+                    enemy.draw();
+                    
+                    // Verifica collisione con giocatore
+                    if (player.checkCollision(enemy)) {
+                        gameOver();
+                    }
+                });
                 
-                // Verifica collisione con giocatore
-                if (player.checkCollision(enemy)) {
-                    gameOver();
+                // Aggiungi nuovi nemici in base alla difficoltà
+                if (Math.random() < 0.005 * difficulty && enemies.length < maxEnemies) {
+                    enemies.push(createEnemy());
                 }
-            });
-            
-            // Aggiungi nuovi nemici in base alla difficoltà
-            if (Math.random() < 0.005 * difficulty && enemies.length < maxEnemies) {
-                enemies.push(createEnemy());
             }
         }
         
@@ -1259,6 +1517,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function gameOver() {
         gameActive = false;
         
+        // Rimuovi tutorial se presente
+        removeTutorialText();
+        
         // Esplosione finale
         for (let i = 0; i < 20; i++) {
             setTimeout(() => {
@@ -1269,6 +1530,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     50
                 );
             }, i * 100);
+        }
+        
+        // Sfuma la musica
+        if (bgMusic) {
+            const fadeOutInterval = setInterval(() => {
+                if (bgMusic.volume > 0.05) {
+                    bgMusic.volume -= 0.05;
+                } else {
+                    bgMusic.pause();
+                    bgMusic.volume = 0.5; // Ripristina il volume
+                    clearInterval(fadeOutInterval);
+                }
+            }, 100);
         }
         
         // Mostra schermata game over
@@ -1396,6 +1670,9 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
     });
+
+    // Inizializza il sistema audio
+    initAudio();
 
     // Inizio gioco
     initGame();
